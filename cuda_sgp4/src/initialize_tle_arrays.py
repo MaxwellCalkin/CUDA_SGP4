@@ -1,6 +1,5 @@
 from cuda_sgp4.src.TLE import TLE
 import numpy as np
-import pandas as pd
 from datetime import datetime, timedelta
 
 
@@ -73,16 +72,11 @@ def _build_tle_array(tles, current_time):
     return tle_arrays, tles
 
 
-def initialize_tle_arrays(path, current_time):
-    df = pd.read_csv(path)
-
-    df['epoch'] = pd.to_datetime(df['epoch'], format='%Y-%m-%dT%H:%M:%S.%fZ')
-
-    tles = [TLE(row['line1'], row['line2']) for _, row in df.iterrows()]
-
-    return _build_tle_array(tles, current_time)
-
-
 def initialize_tle_arrays_from_lines(tle_lines, current_time):
     tles = [TLE(l1, l2) for l1, l2 in tle_lines]
     return _build_tle_array(tles, current_time)
+
+
+def initialize_tle_arrays(tle_lines, current_time):
+    """Backward compatible wrapper for ``initialize_tle_arrays_from_lines``."""
+    return initialize_tle_arrays_from_lines(tle_lines, current_time)

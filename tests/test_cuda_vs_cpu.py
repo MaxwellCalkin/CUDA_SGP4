@@ -1,31 +1,22 @@
 import numpy as np
-import pandas as pd
 from datetime import datetime
 from numba import cuda
 
-from cuda_sgp4.src.initialize_tle_arrays import initialize_tle_arrays
+from cuda_sgp4.src.initialize_tle_arrays import initialize_tle_arrays_from_lines
 from cuda_sgp4.src.cuda_sgp4 import propagate_orbit, tIdx
 from cuda_sgp4.src.SGP4 import sgp4
-from cuda_sgp4.src.TLE import TLE
 
 
-def test_cuda_matches_cpu(tmp_path):
+def test_cuda_matches_cpu():
     # Sample TLE from sgp4 tests
     line1 = "1 00005U 58002B   00179.78495062  .00000023  00000-0  28098-4 0  4753"
     line2 = "2 00005  34.2682 348.7242 1859667 331.7664  19.3264 10.82419157413667"
-
-    epoch_str = "2000-01-01T00:00:00.000Z"
-    df = pd.DataFrame([
-        {"line1": line1, "line2": line2, "epoch": epoch_str, "satNo": 5}
-    ])
-    tle_file = tmp_path / "tle.csv"
-    df.to_csv(tle_file, index=False)
 
     start_time = datetime(2000, 1, 1)
     timestep_seconds = 60
     total_sim_seconds = 180
 
-    tle_arrays, tles = initialize_tle_arrays(tle_file, start_time)
+    tle_arrays, tles = initialize_tle_arrays_from_lines([(line1, line2)], start_time)
     num_satellites = tle_arrays.shape[0]
     total_timesteps = total_sim_seconds // timestep_seconds
 
