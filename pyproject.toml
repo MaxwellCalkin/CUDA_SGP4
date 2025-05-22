@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "cuda-sgp4"
+version = "0.1.0"
+description = ""
+authors = ["Maxwell Calkin <101308415+MaxwellCalkin@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+skyfield = "^1.48"
+numba = "^0.59.1"
+pandas = "^2.2.2"
+matplotlib = "^3.8.4"
+boto3 = "^1.34.108"
+requests = "^2.26.0"
+setuptools = "^75.2.0"
+pytest = "^8.3.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
