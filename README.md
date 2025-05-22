@@ -51,6 +51,29 @@ HEADER_END
 SatNo,timestamp,x,y,z,vx,vy,vz
 ```
 
+## Programmatic Interface
+
+For integration into other projects you can call the GPU propagator
+directly with TLE lines and receive arrays of state vectors without any
+intermediate files.
+
+```python
+from datetime import datetime
+from cuda_sgp4.batch import cuda_sgp4_batch
+
+line1 = "1 00005U 58002B   00179.78495062  .00000023  00000-0  28098-4 0  4753"
+line2 = "2 00005  34.2682 348.7242 1859667 331.7664  19.3264 10.82419157413667"
+
+positions, velocities = cuda_sgp4_batch(
+    [(line1, line2)],
+    timestep_length_in_seconds=60,
+    total_sim_seconds=3600,
+    start_time=datetime.utcnow(),
+)
+```
+
+`positions` and `velocities` have shape `(n_sats, n_steps, 3)`.
+
 ## Checking the Code
 
 There are currently no unit tests. You can perform a basic syntax check with:
