@@ -38,7 +38,13 @@ positions, velocities = cuda_sgp4(
 
 ## Checking the Code
 
-There are currently no unit tests. You can perform a basic syntax check with:
+Unit tests are provided under the `tests` directory. Run them with
+
+```bash
+poetry run pytest
+```
+
+You can still perform a quick syntax check with:
 
 ```bash
 python -m py_compile $(git ls-files '*.py')
