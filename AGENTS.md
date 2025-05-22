@@ -16,7 +16,10 @@ propagator. The primary entry point is `cuda_sgp4/cuda_sgp4.py`.
 ## Development Notes
 
 - Python 3.10 is expected.
-- No unit tests are present. To perform a quick syntax check run:
+- Run all commands via `poetry run` to ensure the correct environment is used.
+- Unit tests live in the `tests` directory. Run them with `poetry run pytest`
+  and ensure they pass before committing.
+- To perform a quick syntax check run:
   `python -m py_compile $(git ls-files '*.py')`
 - When modifying the code follow standard PEP8 style and keep the existing
   structure.

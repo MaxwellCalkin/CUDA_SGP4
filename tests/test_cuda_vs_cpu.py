@@ -1,6 +1,7 @@
 import numpy as np
 from datetime import datetime
 from numba import cuda
+import pytest
 
 from cuda_sgp4.src.initialize_tle_arrays import initialize_tle_arrays_from_lines
 from cuda_sgp4.src.cuda_sgp4 import propagate_orbit, tIdx
@@ -8,6 +9,8 @@ from cuda_sgp4.src.SGP4 import sgp4
 
 
 def test_cuda_matches_cpu():
+    if not cuda.is_available():
+        pytest.skip("CUDA is not available, skipping GPU test")
     # Sample TLE from sgp4 tests
     line1 = "1 00005U 58002B   00179.78495062  .00000023  00000-0  28098-4 0  4753"
     line2 = "2 00005  34.2682 348.7242 1859667 331.7664  19.3264 10.82419157413667"
@@ -26,7 +29,9 @@ def test_cuda_matches_cpu():
 
     threads_per_block = 256
     blocks_per_grid = (num_satellites + threads_per_block - 1) // threads_per_block
-    propagate_orbit[blocks_per_grid, threads_per_block](d_tles, d_r, d_v, total_timesteps, timestep_seconds)
+    propagate_orbit[blocks_per_grid, threads_per_block](
+        d_tles, d_r, d_v, total_timesteps, timestep_seconds
+    )
 
     r = d_r.copy_to_host()
     v = d_v.copy_to_host()
