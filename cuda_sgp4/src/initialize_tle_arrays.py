@@ -1,3 +1,5 @@
+"""Utilities for converting TLEs into GPU-friendly arrays."""
+
 from cuda_sgp4.src.TLE import TLE
 import numpy as np
 from datetime import datetime, timedelta
@@ -31,48 +33,39 @@ ATTRIBUTES = [
     'ainv', 'ao', 'con42', 'cosio', 'cosio2', 'omeosq', 'posq', 'rp', 'rteosq', 'sinio',
 ]
 
+WHICHCONST_IDX = ATTRIBUTES.index("whichconst")
+T_IDX = ATTRIBUTES.index("t")
+
 
 def _build_tle_array(tles, current_time):
+    """Return a ``numpy`` array representation of ``tles``."""
     tle_arrays = np.zeros((len(tles), len(ATTRIBUTES)), dtype=np.float64)
 
     for i, tle in enumerate(tles):
         for j, attr in enumerate(ATTRIBUTES):
-            value = getattr(tle.rec, attr, None)
-            if value is None:
-                tle_arrays[i, j] = 0.0
-            elif isinstance(value, str):
-                # Handle string attributes
-                if len(value) > 1:
-                    tle_arrays[i, j] = 0.0
-                elif len(value) < 1:
-                    tle_arrays[i, j] = 0.0
-                else:
-                    tle_arrays[i, j] = ord(value)
+            value = getattr(tle.rec, attr, 0.0)
+            if isinstance(value, str):
+                tle_arrays[i, j] = ord(value) if len(value) == 1 else 0.0
             else:
                 try:
                     tle_arrays[i, j] = float(value)
                 except (TypeError, ValueError):
-                    tle_arrays[i, j] = 0.0  # Default to 0.0 if conversion fails
+                    tle_arrays[i, j] = 0.0
 
-        # Set 'whichconst' to 2 (SGP4.wgs72)
-        tle_arrays[i, ATTRIBUTES.index('whichconst')] = 2.0
+        tle_arrays[i, WHICHCONST_IDX] = 2.0
 
-        # Compute 't', time since epoch in minutes
         epoch_year = int(tle.rec.epochyr)
         epoch_day = tle.rec.epochdays
-
-        if epoch_year < 57:
-            epoch_year += 2000
-        else:
-            epoch_year += 1900
-
+        epoch_year += 2000 if epoch_year < 57 else 1900
         epoch = datetime(epoch_year, 1, 1) + timedelta(days=epoch_day - 1)
-        time_diff = (current_time - epoch).total_seconds() / 60  # Convert time_diff to minutes
-        tle_arrays[i, ATTRIBUTES.index('t')] = time_diff
+        time_diff = (current_time - epoch).total_seconds() / 60
+        tle_arrays[i, T_IDX] = time_diff
+
     return tle_arrays, tles
 
 
 def initialize_tle_arrays_from_lines(tle_lines, current_time):
+    """Create TLE objects from ``tle_lines`` and build the array."""
     tles = [TLE(l1, l2) for l1, l2 in tle_lines]
     return _build_tle_array(tles, current_time)
 

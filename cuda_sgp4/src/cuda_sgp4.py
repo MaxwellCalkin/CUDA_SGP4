@@ -1,4 +1,6 @@
 # Imports
+"""CUDA kernels and helpers for the SGP4 propagator."""
+
 from numba import cuda, int32
 import math
 
@@ -41,213 +43,14 @@ attributes = [
 # Create index mapping for attributes
 index_mapping = {attr: idx for idx, attr in enumerate(attributes)}
 
-# Define index variables for all attributes
-whichconstIdx = 0
-satnumIdx = 1
-epochyrIdx = 2
-epochtynumrevIdx = 3
-errorIdx = 4
-operationmodeIdx = 5
-initIdx = 6
-methodIdx = 7
-aIdx = 8
-altpIdx = 9
-altaIdx = 10
-epochdaysIdx = 11
-jdsatepochIdx = 12
-jdsatepochFIdx = 13
-nddotIdx = 14
-ndotIdx = 15
-bstarIdx = 16
-rcseIdx = 17
-incloIdx = 18
-nodeoIdx = 19
-eccoIdx = 20
-argpoIdx = 21
-moIdx = 22
-no_kozaiIdx = 23
-no_unkozaiIdx = 24
-classificationIdx = 25
-intldesgIdx = 26
-ephtypeIdx = 27
-elnumIdx = 28
-revnumIdx = 29
-gno_unkozaiIdx = 30
-amIdx = 31
-emIdx = 32
-imIdx = 33
-OmIdx = 34
-omIdx = 35
-mmIdx = 36
-nmIdx = 37
-tIdx = 38
-tuminIdx = 39
-muIdx = 40
-radiusearthkmIdx = 41
-xkeIdx = 42
-j2Idx = 43
-j3Idx = 44
-j4Idx = 45
-j3oj2Idx = 46
-dia_mmIdx = 47
-period_secIdx = 48
-activeIdx = 49
-not_orbitalIdx = 50
-rcs_m2Idx = 51
-epIdx = 52
-inclpIdx = 53
-nodepIdx = 54
-argppIdx = 55
-mpIdx = 56
-isimpIdx = 57
-aycofIdx = 58
-con41Idx = 59
-cc1Idx = 60
-cc4Idx = 61
-cc5Idx = 62
-d2Idx = 63
-d3Idx = 64
-d4Idx = 65
-delmoIdx = 66
-etaIdx = 67
-argpdotIdx = 68
-omgcofIdx = 69
-sinmaoIdx = 70
-t2cofIdx = 71
-t3cofIdx = 72
-t4cofIdx = 73
-t5cofIdx = 74
-x1mth2Idx = 75
-x7thm1Idx = 76
-mdotIdx = 77
-nodedotIdx = 78
-xlcofIdx = 79
-xmcofIdx = 80
-nodecfIdx = 81
-irezIdx = 82
-d2201Idx = 83
-d2211Idx = 84
-d3210Idx = 85
-d3222Idx = 86
-d4410Idx = 87
-d4422Idx = 88
-d5220Idx = 89
-d5232Idx = 90
-d5421Idx = 91
-d5433Idx = 92
-dedtIdx = 93
-del1Idx = 94
-del2Idx = 95
-del3Idx = 96
-didtIdx = 97
-dmdtIdx = 98
-dnodtIdx = 99
-domdtIdx = 100
-e3Idx = 101
-ee2Idx = 102
-peoIdx = 103
-pghoIdx = 104
-phoIdx = 105
-pincoIdx = 106
-ploIdx = 107
-se2Idx = 108
-se3Idx = 109
-sgh2Idx = 110
-sgh3Idx = 111
-sgh4Idx = 112
-sh2Idx = 113
-sh3Idx = 114
-si2Idx = 115
-si3Idx = 116
-sl2Idx = 117
-sl3Idx = 118
-sl4Idx = 119
-gstoIdx = 120
-xfactIdx = 121
-xgh2Idx = 122
-xgh3Idx = 123
-xgh4Idx = 124
-xh2Idx = 125
-xh3Idx = 126
-xi2Idx = 127
-xi3Idx = 128
-xl2Idx = 129
-xl3Idx = 130
-xl4Idx = 131
-xlamoIdx = 132
-zmolIdx = 133
-zmosIdx = 134
-atimeIdx = 135
-xliIdx = 136
-xniIdx = 137
-snodmIdx = 138
-cnodmIdx = 139
-sinimIdx = 140
-cosimIdx = 141
-sinommIdx = 142
-cosommIdx = 143
-dayIdx = 144
-emsqIdx = 145
-gamIdx = 146
-rtemsqIdx = 147
-s1Idx = 148
-s2Idx = 149
-s3Idx = 150
-s4Idx = 151
-s5Idx = 152
-s6Idx = 153
-s7Idx = 154
-ss1Idx = 155
-ss2Idx = 156
-ss3Idx = 157
-ss4Idx = 158
-ss5Idx = 159
-ss6Idx = 160
-ss7Idx = 161
-sz1Idx = 162
-sz2Idx = 163
-sz3Idx = 164
-sz11Idx = 165
-sz12Idx = 166
-sz13Idx = 167
-sz21Idx = 168
-sz22Idx = 169
-sz23Idx = 170
-sz31Idx = 171
-sz32Idx = 172
-sz33Idx = 173
-z1Idx = 174
-z2Idx = 175
-z3Idx = 176
-z11Idx = 177
-z12Idx = 178
-z13Idx = 179
-z21Idx = 180
-z22Idx = 181
-z23Idx = 182
-z31Idx = 183
-z32Idx = 184
-z33Idx = 185
-argpmIdx = 186
-inclmIdx = 187
-nodemIdx = 188
-dndtIdx = 189
-eccsqIdx = 190
-ainvIdx = 191
-aoIdx = 192
-con42Idx = 193
-cosioIdx = 194
-cosio2Idx = 195
-omeosqIdx = 196
-posqIdx = 197
-rpIdx = 198
-rteosqIdx = 199
-sinioIdx = 200
+# Export ``<attribute>Idx`` constants for compatibility
+globals().update({f"{attr}Idx": idx for idx, attr in enumerate(attributes)})
 
 
 # Device function dpper
 @cuda.jit(device=True)
 def dpper(tle_array, init, opsmode):
+    """Apply deep space periodic perturbations."""
     # Constants
     zns = 1.19459e-5
     zes = 0.01675
@@ -400,6 +203,7 @@ def dpper(tle_array, init, opsmode):
 
 @cuda.jit(device=True)
 def dspace(tle_array, tc):
+    """Compute deep space resonance effects."""
     # Initialize variables
     xndt = 0.0
     xnddt = 0.0
@@ -534,6 +338,7 @@ def dspace(tle_array, tc):
 
 @cuda.jit(device=True, fastmath=False)
 def sgp4(tle_array, tsince, r, v):
+    """Propagate a single satellite for ``tsince`` minutes."""
     # Define mathematical constants
     x2o3 = 2.0 / 3.0
     temp4 = 1.5e-12
@@ -826,6 +631,7 @@ def sgp4(tle_array, tsince, r, v):
 
 @cuda.jit
 def propagate_orbit(tle_arrays, r, v, total_timesteps, timestep_length_in_seconds):
+    """Kernel wrapper calling :func:`sgp4` for each satellite and timestep."""
     idx = cuda.grid(1)
     num_satellites = tle_arrays.shape[0]
 
