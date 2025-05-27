@@ -2,33 +2,41 @@ import numpy as np
 from datetime import datetime
 from numba import cuda
 import pytest
+import warnings
+from numba.core.errors import NumbaPerformanceWarning
 
 from cuda_sgp4.src.initialize_tle_arrays import initialize_tle_arrays_from_lines
-from cuda_sgp4.src.cuda_sgp4 import propagate_orbit, tIdx
+from cuda_sgp4.src.cuda_sgp4 import propagate_orbit, tIdx, get_optimal_launch_config
 from cuda_sgp4.src.SGP4 import sgp4
 
+# Suppress CUDA performance warnings for test cases with small workloads
+warnings.filterwarnings('ignore', category=NumbaPerformanceWarning)
 
-def _make_tle(satnum: int, inc: float, raan: float, ecc: float, argp: float,
-               ma: float, mm: float, rev: int = 1,
-               epoch: str = "00179.78495062") -> tuple[str, str]:
+def _make_tle(
+    satnum: int, inc: float, raan: float, ecc: float, argp: float,
+    ma: float, mm: float, rev: int = 1, epoch: str = "00179.78495062"
+) -> tuple[str, str]:
     """Generate a simple synthetic TLE.
 
-    Parameters are inserted into a fixed width string so that the lines remain
-    69 characters long which matches the example TLE used elsewhere in the
-    repository.
-    """
-
+        Parameters are inserted into a fixed width string so that the lines remain
+        69 characters long which matches the example TLE used elsewhere in the
+        repository.
+        """
     line1 = (
         f"1 {satnum:05d}U 58002B   {epoch}  .00000023  00000-0  28098-4 0  4753"
     )
+
     line2 = (
-        f"2 {satnum:05d}  {inc:8.4f} {raan:8.4f} {int(ecc * 1e7):07d} "
-        f"{argp:8.4f} {ma:8.4f} {mm:11.8f}{rev:05d}"
+        # --- one blank after satnum ---↓
+        f"2 {satnum:05d} {inc:8.4f} {raan:8.4f} {int(ecc*1e7):07d} "
+        f"{argp:8.4f} {ma:8.4f} {mm:11.8f} {rev:05d}"   # ← space before rev
     )
-    # Sanity check to ensure the lines have the expected length.
+
+    # Sanity check
     assert len(line1) == 69, len(line1)
     assert len(line2) == 69, len(line2)
     return line1, line2
+
 
 
 def _generate_sample_tles() -> list[tuple[str, str]]:
@@ -111,8 +119,7 @@ def test_cuda_matches_cpu():
         d_r = cuda.device_array((3, num_satellites, total_timesteps), dtype=np.float64)
         d_v = cuda.device_array((3, num_satellites, total_timesteps), dtype=np.float64)
 
-        threads_per_block = 256
-        blocks_per_grid = (num_satellites + threads_per_block - 1) // threads_per_block
+        blocks_per_grid, threads_per_block = get_optimal_launch_config(num_satellites)
         propagate_orbit[blocks_per_grid, threads_per_block](
             d_tles, d_r, d_v, total_timesteps, timestep_seconds
         )

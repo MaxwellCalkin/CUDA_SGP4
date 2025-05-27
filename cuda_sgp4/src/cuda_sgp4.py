@@ -13,6 +13,80 @@ wgs72old = 1
 wgs72 = 2
 wgs84 = 3
 
+def get_optimal_launch_config(num_satellites, min_blocks=8):
+    """
+    Calculate optimal CUDA launch configuration for good GPU utilization.
+    
+    Args:
+        num_satellites: Number of satellites to process
+        min_blocks: Minimum number of blocks to ensure good occupancy
+        
+    Returns:
+        tuple: (blocks_per_grid, threads_per_block)
+    """
+    if not cuda.is_available():
+        return 1, 1
+    
+    # Get GPU properties
+    device = cuda.get_current_device()
+    max_threads_per_block = device.MAX_THREADS_PER_BLOCK
+    multiprocessor_count = device.MULTIPROCESSOR_COUNT
+    
+    # Typical good choices for threads per block (powers of 2, multiples of warp size)
+    preferred_block_sizes = [32, 64, 128, 256, 512, 1024]
+    
+    # Filter by what the device supports
+    valid_block_sizes = [size for size in preferred_block_sizes if size <= max_threads_per_block]
+    
+    best_config = None
+    best_utilization = 0
+    
+    for threads_per_block in valid_block_sizes:
+        blocks_needed = (num_satellites + threads_per_block - 1) // threads_per_block
+        
+        # Ensure minimum number of blocks for good occupancy
+        if blocks_needed < min_blocks:
+            # Reduce threads per block to increase number of blocks
+            threads_per_block = max(32, (num_satellites + min_blocks - 1) // min_blocks)
+            # Round down to nearest multiple of 32 (warp size)
+            threads_per_block = (threads_per_block // 32) * 32
+            if threads_per_block == 0:
+                threads_per_block = 32
+            blocks_needed = (num_satellites + threads_per_block - 1) // threads_per_block
+        
+        # Calculate utilization metrics
+        total_threads = blocks_needed * threads_per_block
+        thread_utilization = num_satellites / total_threads if total_threads > 0 else 0
+        
+        # Prefer configurations that use more SMs
+        sm_utilization = min(blocks_needed / multiprocessor_count, 1.0)
+        
+        # Combined score (weight thread efficiency more heavily)
+        utilization_score = 0.7 * thread_utilization + 0.3 * sm_utilization
+        
+        if utilization_score > best_utilization:
+            best_utilization = utilization_score
+            best_config = (blocks_needed, threads_per_block)
+    
+    if best_config is None:
+        # Fallback to simple calculation
+        threads_per_block = min(256, max_threads_per_block)
+        blocks_per_grid = max(min_blocks, (num_satellites + threads_per_block - 1) // threads_per_block)
+        best_config = (blocks_per_grid, threads_per_block)
+    
+    return best_config
+
+def suppress_cuda_warnings():
+    """
+    Suppress CUDA performance warnings for small test cases.
+    
+    Call this function before running CUDA kernels if you want to suppress
+    NumbaPerformanceWarning messages for small workloads.
+    """
+    import warnings
+    from numba.core.errors import NumbaPerformanceWarning
+    warnings.filterwarnings('ignore', category=NumbaPerformanceWarning)
+
 # List of all attributes from ElsetRec class
 attributes = [
     'whichconst', 'satnum', 'epochyr', 'epochtynumrev', 'error', 'operationmode',
@@ -167,7 +241,7 @@ def dpper(tle_array, init, opsmode):
 
             # Correct nodep
             nodep = math.fmod(nodep, twopi)
-            if nodep < 0.0 and opsmode == 97:  # 'a' in ASCII
+            if nodep < 0.0 and opsmode == 97.0:  # 'a' in ASCII, use float comparison
                 nodep += twopi
 
             # Compute xls
@@ -179,11 +253,11 @@ def dpper(tle_array, init, opsmode):
             # Save old nodep and update it
             xnoh = nodep
             nodep = math.atan2(alfdp, betdp)
-            if nodep < 0.0 and opsmode == 97:  # 'a' in ASCII
+            if nodep < 0.0 and opsmode == 97.0:  # 'a' in ASCII, use float comparison
                 nodep += twopi
 
             # Adjust nodep to prevent discontinuity
-            if abs(xnoh - nodep) > math.pi:
+            if math.fabs(xnoh - nodep) > math.pi:
                 if nodep < xnoh:
                     nodep += twopi
                 else:
@@ -472,10 +546,10 @@ def sgp4(tle_array, tsince, r, v):
     temp = 1.0 - tle_array[emsqIdx]
 
     # Normalize angles using modulo operator
-    tle_array[nodemIdx] = nodem % twopi
-    tle_array[argpmIdx] = argpm % twopi
-    xlm = xlm % twopi
-    tle_array[mmIdx] = (xlm - tle_array[argpmIdx] - tle_array[nodemIdx]) % twopi
+    tle_array[nodemIdx] = math.fmod(nodem, twopi)
+    tle_array[argpmIdx] = math.fmod(argpm, twopi)
+    xlm = math.fmod(xlm, twopi)
+    tle_array[mmIdx] = math.fmod(xlm - tle_array[argpmIdx] - tle_array[nodemIdx], twopi)
 
     # Recover singly averaged mean elements
     tle_array[amIdx] = tle_array[amIdx]
@@ -520,6 +594,9 @@ def sgp4(tle_array, tsince, r, v):
             xincp = -xincp
             tle_array[nodepIdx] = tle_array[nodepIdx] + pi
             tle_array[argppIdx] = tle_array[argppIdx] - pi
+            # Update local variables to match the array values
+            nodep = tle_array[nodepIdx]
+            argpp = tle_array[argppIdx]
 
         if ep < 0.0 or ep > 1.0:
             tle_array[errorIdx] = 3
@@ -542,7 +619,7 @@ def sgp4(tle_array, tsince, r, v):
     aynl = tle_array[epIdx] * math.sin(tle_array[argppIdx]) + temp * tle_array[aycofIdx]
     xl = mp + tle_array[argppIdx] + tle_array[nodepIdx] + temp * tle_array[xlcofIdx] * axnl
     # Solve Kepler's equation
-    u = (xl - nodep) % twopi
+    u = math.fmod(xl - nodep, twopi)
     eo1 = u
     tem5 = 9999.9
     ktr = 1
