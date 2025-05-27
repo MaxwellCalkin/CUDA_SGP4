@@ -725,3 +725,22 @@ def propagate_orbit(tle_arrays, r, v, total_timesteps, timestep_length_in_second
         tsince = time_diff + t_step * timestep_length_in_seconds / 60.0  # Convert to minutes
         # Call the sgp4 device function to propagate
         sgp4(tle_array, tsince, r[:, idx, t_step], v[:, idx, t_step])
+
+@cuda.jit
+def _transpose_arrays(d_r, d_v, d_r_transposed, d_v_transposed, num_satellites, total_timesteps):
+    """Transpose position and velocity arrays from (3, n_sats, n_steps) to (n_sats, n_steps, 3) on GPU."""
+    idx = cuda.grid(1)
+    
+    if idx >= num_satellites:
+        return
+    
+    for t_step in range(total_timesteps):
+        # Transpose positions: (3, n_sats, n_steps) -> (n_sats, n_steps, 3)
+        d_r_transposed[idx, t_step, 0] = d_r[0, idx, t_step]
+        d_r_transposed[idx, t_step, 1] = d_r[1, idx, t_step]
+        d_r_transposed[idx, t_step, 2] = d_r[2, idx, t_step]
+        
+        # Transpose velocities: (3, n_sats, n_steps) -> (n_sats, n_steps, 3)
+        d_v_transposed[idx, t_step, 0] = d_v[0, idx, t_step]
+        d_v_transposed[idx, t_step, 1] = d_v[1, idx, t_step]
+        d_v_transposed[idx, t_step, 2] = d_v[2, idx, t_step]

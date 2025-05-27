@@ -1,21 +1,19 @@
 [tool.poetry]
 name = "cuda-sgp4"
 version = "0.1.0"
-description = ""
+description = "CUDA accelerated SGP4 satellite orbit propagation"
 authors = ["Maxwell Calkin <101308415+MaxwellCalkin@users.noreply.github.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-skyfield = "^1.48"
 numba = "^0.59.1"
-matplotlib = "^3.8.4"
-boto3 = "^1.34.108"
-requests = "^2.26.0"
-setuptools = "^75.2.0"
-pytest = "^8.3.3"
+numpy = "^1.24.0"
+astropy = "^5.2.1"
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
 
 [build-system]
 requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+build-backend = "poetry.core.masonry.api" 
