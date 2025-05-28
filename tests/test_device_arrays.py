@@ -7,7 +7,7 @@ import pytest
 import warnings
 from numba.core.errors import NumbaPerformanceWarning
 
-from cuda_sgp4 import cuda_sgp4, device_arrays_to_host, get_device_array_info
+from cuda_sgp4 import cuda_sgp4, device_arrays_to_host, get_device_array_info, tle_lines_to_device_array
 
 # Suppress CUDA performance warnings for test cases with small workloads
 warnings.filterwarnings('ignore', category=NumbaPerformanceWarning)
@@ -30,7 +30,7 @@ def test_device_arrays_basic():
     
     # Test device arrays
     device_pos, device_vel = cuda_sgp4(
-        tle_lines,
+        tle_lines=tle_lines,
         timestep_length_in_seconds=timestep_seconds,
         total_sim_seconds=total_seconds,
         start_time=start_time,
@@ -60,7 +60,7 @@ def test_device_vs_host_arrays():
     
     # Get host arrays (default behavior)
     host_pos, host_vel = cuda_sgp4(
-        tle_lines,
+        tle_lines=tle_lines,
         timestep_length_in_seconds=timestep_seconds,
         total_sim_seconds=total_seconds,
         start_time=start_time,
@@ -69,7 +69,7 @@ def test_device_vs_host_arrays():
     
     # Get device arrays
     device_pos, device_vel = cuda_sgp4(
-        tle_lines,
+        tle_lines=tle_lines,
         timestep_length_in_seconds=timestep_seconds,
         total_sim_seconds=total_seconds,
         start_time=start_time,
@@ -85,6 +85,141 @@ def test_device_vs_host_arrays():
 
 
 @pytest.mark.skipif(not cuda.is_available(), reason="CUDA is not available")
+def test_tle_lines_to_device_array():
+    """Test the tle_lines_to_device_array function."""
+    tle_lines = [_make_simple_tle()]
+    start_time = datetime(2000, 1, 1)
+    
+    # Convert TLE lines to device array
+    tle_device_array = tle_lines_to_device_array(tle_lines, start_time)
+    
+    # Verify it's a device array
+    assert isinstance(tle_device_array, cuda.devicearray.DeviceNDArray)
+    
+    # Check shape (should be n_satellites x n_attributes)
+    assert tle_device_array.shape[0] == 1  # 1 satellite
+    assert tle_device_array.shape[1] > 100  # Many attributes
+    
+    # Check dtype
+    assert tle_device_array.dtype == np.float64
+
+
+@pytest.mark.skipif(not cuda.is_available(), reason="CUDA is not available")
+def test_device_array_input():
+    """Test using device arrays as input to cuda_sgp4."""
+    tle_lines = [_make_simple_tle()]
+    start_time = datetime(2000, 1, 1)
+    timestep_seconds = 60
+    total_seconds = 180  # 3 timesteps
+    
+    # Pre-process TLE data to device array
+    tle_device_array = tle_lines_to_device_array(tle_lines, start_time)
+    
+    # Use device array as input
+    device_pos, device_vel = cuda_sgp4(
+        tle_device_array=tle_device_array,
+        timestep_length_in_seconds=timestep_seconds,
+        total_sim_seconds=total_seconds,
+        return_device_arrays=True
+    )
+    
+    # Verify results
+    assert isinstance(device_pos, cuda.devicearray.DeviceNDArray)
+    assert isinstance(device_vel, cuda.devicearray.DeviceNDArray)
+    assert device_pos.shape == (1, 3, 3)
+    assert device_vel.shape == (1, 3, 3)
+
+
+@pytest.mark.skipif(not cuda.is_available(), reason="CUDA is not available")
+def test_device_input_vs_string_input():
+    """Test that device array input produces same results as string input."""
+    tle_lines = [_make_simple_tle()]
+    start_time = datetime(2000, 1, 1)
+    timestep_seconds = 60
+    total_seconds = 180  # 3 timesteps
+    
+    # Method 1: Traditional string input
+    pos1, vel1 = cuda_sgp4(
+        tle_lines=tle_lines,
+        timestep_length_in_seconds=timestep_seconds,
+        total_sim_seconds=total_seconds,
+        start_time=start_time,
+        return_device_arrays=True
+    )
+    
+    # Method 2: Device array input
+    tle_device_array = tle_lines_to_device_array(tle_lines, start_time)
+    pos2, vel2 = cuda_sgp4(
+        tle_device_array=tle_device_array,
+        timestep_length_in_seconds=timestep_seconds,
+        total_sim_seconds=total_seconds,
+        return_device_arrays=True
+    )
+    
+    # Convert to host for comparison
+    pos1_host, vel1_host = device_arrays_to_host(pos1, vel1)
+    pos2_host, vel2_host = device_arrays_to_host(pos2, vel2)
+    
+    # Results should be identical
+    np.testing.assert_allclose(pos1_host, pos2_host, rtol=1e-12)
+    np.testing.assert_allclose(vel1_host, vel2_host, rtol=1e-12)
+
+
+@pytest.mark.skipif(not cuda.is_available(), reason="CUDA is not available")
+def test_device_input_parameter_validation():
+    """Test parameter validation for device array input."""
+    tle_lines = [_make_simple_tle()]
+    start_time = datetime(2000, 1, 1)
+    
+    # Test error when neither tle_lines nor tle_device_array provided
+    with pytest.raises(ValueError, match="Either provide tle_lines and start_time, or provide tle_device_array"):
+        cuda_sgp4()
+    
+    # Test error when both tle_lines and tle_device_array provided
+    tle_device_array = tle_lines_to_device_array(tle_lines, start_time)
+    with pytest.raises(ValueError, match="Cannot provide both tle_device_array and tle_lines/start_time"):
+        cuda_sgp4(
+            tle_lines=tle_lines,
+            start_time=start_time,
+            tle_device_array=tle_device_array
+        )
+    
+    # Test error when tle_device_array is not a device array
+    with pytest.raises(TypeError, match="tle_device_array must be a CUDA device array"):
+        cuda_sgp4(tle_device_array=np.array([1, 2, 3]))
+
+
+@pytest.mark.skipif(not cuda.is_available(), reason="CUDA is not available")
+def test_device_input_multiple_runs():
+    """Test efficiency of device array input for multiple runs."""
+    tle_lines = [_make_simple_tle()]
+    start_time = datetime(2000, 1, 1)
+    
+    # Pre-process TLE data once
+    tle_device_array = tle_lines_to_device_array(tle_lines, start_time)
+    
+    # Run multiple propagations with different parameters
+    results = []
+    for timestep in [30, 60, 120]:
+        pos, vel = cuda_sgp4(
+            tle_device_array=tle_device_array,
+            timestep_length_in_seconds=timestep,
+            total_sim_seconds=180,
+            return_device_arrays=True
+        )
+        results.append((pos, vel))
+    
+    # Verify all results are valid device arrays
+    for pos, vel in results:
+        assert isinstance(pos, cuda.devicearray.DeviceNDArray)
+        assert isinstance(vel, cuda.devicearray.DeviceNDArray)
+        assert pos.shape[0] == 1  # 1 satellite
+        assert pos.shape[2] == 3  # 3 coordinates
+        assert vel.shape[0] == 1
+        assert vel.shape[2] == 3
+
+
+@pytest.mark.skipif(not cuda.is_available(), reason="CUDA is not available")
 def test_device_array_info():
     """Test the device array info function."""
     tle_lines = [_make_simple_tle()]
@@ -93,7 +228,7 @@ def test_device_array_info():
     total_seconds = 120  # 2 timesteps
     
     device_pos, device_vel = cuda_sgp4(
-        tle_lines,
+        tle_lines=tle_lines,
         timestep_length_in_seconds=timestep_seconds,
         total_sim_seconds=total_seconds,
         start_time=start_time,
@@ -129,7 +264,7 @@ def test_multiple_satellites_device_arrays():
     total_seconds = 240  # 4 timesteps
     
     device_pos, device_vel = cuda_sgp4(
-        tle_lines,
+        tle_lines=tle_lines,
         timestep_length_in_seconds=timestep_seconds,
         total_sim_seconds=total_seconds,
         start_time=start_time,
@@ -160,7 +295,7 @@ def test_backward_compatibility():
     
     # Test default behavior (should return host arrays)
     pos, vel = cuda_sgp4(
-        tle_lines,
+        tle_lines=tle_lines,
         timestep_length_in_seconds=timestep_seconds,
         total_sim_seconds=total_seconds,
         start_time=start_time
@@ -174,7 +309,7 @@ def test_backward_compatibility():
     
     # Test explicit False
     pos2, vel2 = cuda_sgp4(
-        tle_lines,
+        tle_lines=tle_lines,
         timestep_length_in_seconds=timestep_seconds,
         total_sim_seconds=total_seconds,
         start_time=start_time,
