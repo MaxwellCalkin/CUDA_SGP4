@@ -236,6 +236,31 @@ Unit tests are provided under the `tests` directory. Run them with
 poetry run pytest
 ```
 
+### Test Categories
+
+The test suite includes different categories of tests:
+
+- **Standard tests**: Fast tests that run in a few seconds
+- **Large-scale tests**: Marked with `@pytest.mark.slow` - these test with 65 satellites and 11,800 time steps
+
+To run only fast tests (excluding large-scale tests):
+
+```bash
+poetry run pytest -m "not slow"
+```
+
+To run only large-scale tests:
+
+```bash
+poetry run pytest -m "slow"
+```
+
+To run all tests with verbose output:
+
+```bash
+poetry run pytest -v
+```
+
 You can still perform a quick syntax check with:
 
 ```bash
