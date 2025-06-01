@@ -71,6 +71,7 @@ def test_cuda_matches_standard_sgp4():
 
     for i, (l1, l2) in enumerate(tle_lines):
         sat = Satrec.twoline2rv(l1, l2)
+        print(f"\nSatellite {i+1}:")
         for step in range(n_steps):
             current = start_time + timedelta(seconds=step * timestep_seconds)
             jd, fr = jday(
@@ -83,5 +84,14 @@ def test_cuda_matches_standard_sgp4():
             )
             error, r, v = sat.sgp4(jd, fr)
             assert error == 0
-            np.testing.assert_allclose(positions[i, step], r, atol=1e-6)
-            np.testing.assert_allclose(velocities[i, step], v, atol=1e-6)
+            
+            print(f"  Step {step+1} (t={step * timestep_seconds}s):")
+            print(f"    Position - CUDA: {positions[i, step]}")
+            print(f"    Position - SGP4: {r}")
+            print(f"    Position - Diff: {np.array(positions[i, step]) - np.array(r)}")
+            print(f"    Velocity - CUDA: {velocities[i, step]}")
+            print(f"    Velocity - SGP4: {v}")
+            print(f"    Velocity - Diff: {np.array(velocities[i, step]) - np.array(v)}")
+            
+            np.testing.assert_allclose(positions[i, step], r, atol=1e-10)
+            np.testing.assert_allclose(velocities[i, step], v, atol=1e-10)
