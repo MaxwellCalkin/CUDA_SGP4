@@ -1,8 +1,9 @@
 """Utilities for converting TLEs into GPU-friendly arrays."""
 
-from cuda_sgp4.src.TLE import TLE
+from cuda_sgp4.src.TLE import SafeTLEParser
 import numpy as np
 from datetime import datetime, timedelta
+import warnings
 
 
 # List of all attributes from ElsetRec class.  These are converted to
@@ -65,8 +66,37 @@ def _build_tle_array(tles, current_time):
 
 
 def initialize_tle_arrays_from_lines(tle_lines, current_time):
-    """Create TLE objects from ``tle_lines`` and build the array."""
-    tles = [TLE(l1, l2) for l1, l2 in tle_lines]
+    """Create TLE objects from ``tle_lines`` and build the array.
+    
+    Uses SafeTLEParser for robust handling of real-world TLE format variations.
+    """
+    tles = []
+    failed_indices = []
+    
+    for i, (l1, l2) in enumerate(tle_lines):
+        try:
+            tle = SafeTLEParser(l1, l2, strict=False)
+            if tle.has_errors():
+                # Log warnings but continue with parsed values
+                warnings.warn(
+                    f"TLE at index {i} had parsing errors but was recovered: "
+                    f"{'; '.join(tle.get_errors())}"
+                )
+            tles.append(tle)
+        except Exception as e:
+            # Critical error - TLE could not be parsed at all
+            warnings.warn(f"Failed to parse TLE at index {i}: {str(e)}")
+            failed_indices.append(i)
+    
+    if failed_indices:
+        warnings.warn(
+            f"Failed to parse {len(failed_indices)} TLEs out of {len(tle_lines)}. "
+            f"Failed indices: {failed_indices[:10]}{'...' if len(failed_indices) > 10 else ''}"
+        )
+    
+    if not tles:
+        raise ValueError("No TLEs could be successfully parsed")
+    
     return _build_tle_array(tles, current_time)
 
 

@@ -1,6 +1,7 @@
 [tool.poetry]
 name = "cuda-sgp4"
 version = "0.1.0"
+packages = [{ include = "cuda_sgp4" }]
 description = "CUDA accelerated SGP4 satellite orbit propagation"
 authors = ["Maxwell Calkin <101308415+MaxwellCalkin@users.noreply.github.com>"]
 readme = "README.md"
