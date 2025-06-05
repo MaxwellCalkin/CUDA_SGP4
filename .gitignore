@@ -6,8 +6,10 @@ __pycache__/
 *.pyd
 *.pyw
 *.pyz
+settings.local.json
 
 .idea/
 .vscode/
 
 .pytest_cache/
+.claude/
